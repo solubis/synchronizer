@@ -1,0 +1,75 @@
+{
+    "ChangeLog": {
+        "primaryKey": "id",
+        "fields"    : [
+            {
+                "name"         : "id",
+                "type"         : "int",
+                "length"       : 5,
+                "autoincrement": true
+            },
+            {
+                "name": "object_id"
+            },
+            {
+                "name": "tablename"
+            },
+            {
+                "name": "timestamp",
+                "type": "date"
+            },
+            {
+                "name"  : "operation",
+                "type"  : "string",
+                "length": 1
+            }
+        ]
+    },
+
+    "Task": {
+        "fields": [
+            {
+                "name": "id",
+                "type": "string"
+            },
+            {
+                "name": "name",
+                "type": "string"
+            },
+            {
+                "name"  : "description",
+                "type"  : "string",
+                "length": 255
+            },
+            {
+                "name": "start",
+                "type": "date"
+            },
+            {
+                "name": "end",
+                "type": "date"
+            },
+            {
+                "name": "estimate",
+                "type": "int"
+            },
+            {
+                "name": "type_id",
+                "type": "string"
+            }
+        ]
+    },
+
+    "Type": {
+        "fields": [
+            {
+                "name": "id",
+                "type": "string"
+            },
+            {
+                "name": "name",
+                "type": "string"
+            }
+        ]
+    }
+}

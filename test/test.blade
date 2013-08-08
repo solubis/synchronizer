@@ -1,0 +1,17 @@
+doctype 5
+html
+    head
+        meta(charset='UTF-8')
+        title title
+        link(rel='stylesheet', href='node_modules/qunitjs/qunit/qunit.css', type='text/css', media='screen')
+
+    body
+        h1#qunit-header QUnit Test Suite
+        h2#qunit-banner
+        #qunit-testrunner-toolbar
+        h2#qunit-userAgent
+        ol#qunit-tests
+        #qunit-fixture test markup
+
+        script(src='node_modules/qunitjs/qunit/qunit.js')
+        script(data-main="test/test-qunit", src='node_modules/requirejs/require.js')

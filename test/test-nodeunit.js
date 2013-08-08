@@ -65,7 +65,7 @@ exports.testDatabaseCRUD = function (test) {
 };
 
 exports.testSynchronize = function (test) {
-    var o2, o1, lastSync;
+    var o2, o1, lastSync = new Date(1900,1,1);
 
     async.waterfall([
         function (callback) {
@@ -94,9 +94,7 @@ exports.testSynchronize = function (test) {
 
         // First Synchronization - 2 rows
         function (callback) {
-            lastSync = new Date();
-
-            sync.getChangedData(null, callback);
+            sync.getChangedData(new Date(1900,1,1), callback);
         },
         function (result, callback) {
             test.notEqual(result, null, "Changed data read");

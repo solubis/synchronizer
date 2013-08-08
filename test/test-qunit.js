@@ -5,289 +5,271 @@
  *    Copyright 2011 Client and Friends. All rights reserved.
  */
 
-/*global QUnit, solubis, console, asyncTest, equal, notEqual, start, ok*/
+/*global QUnit, console, asyncTest, equal, notEqual, start, ok*/
 
 "use strict";
 
-var step;
+require(["../node_modules/async/lib/async", "../client/websqlite", "../client/remote", "../shared/utils", "../shared/synchronizer"], function (async, sqlite, remote, utils, synchronizer) {
 
-step = solubis.utils.step;
+    QUnit.testStart = function (test) {
+        console.log("Test: " + test.module + " - " + test.name);
+    };
 
-QUnit.testStart = function (test) {
-    console.log("Test: " + test.module + " - " + test.name);
-};
+    module("Synchronizer", {
+        setup: function () {
 
-module("Synchronizer", {
-    setup: function () {
+            this.db = new sqlite("test");
+            this.db.setQueryLog(false);
 
-        solubis.config.set("serverURL", "http://localhost:8888");
-        solubis.config.set("database", "timtrak");
-        solubis.config.set("clientUID", "Mac");
+            this.sync = new synchronizer(this.db);
 
-        this.db = new solubis.data.WebSQLiteDatabase(solubis.config.database);
-        this.db.setQueryLog(false);
-        this.sync = new solubis.data.SynchronizerClient(
-            this.db,
-            solubis.config.get("serverURL"),
-            solubis.config.get("clientUID")
+            this.remote = new remote("http://localhost:3000", "test", "mac");
+        }
+    });
+
+    asyncTest("Create database", function () {
+        var me = this;
+
+        async.waterfall([
+            function (callback) {
+                me.db.open(callback);
+            },
+            function (callback) {
+                me.db.createTables(callback);
+            }],
+            function finalize(error) {
+                ok(error === null);
+                me.db.close();
+                start();
+            }
         );
-    }
-});
+    });
 
-asyncTest("Create database", 1, function () {
-    var me = this;
+    asyncTest("Insert record", function () {
+        var me = this;
 
-    step(
-        function () {
-            me.db.open(this);
-        },
-        function () {
-            me.db.createTables(this);
-        },
-        function (error) {
-            equal(error, null, "Funkcja powinna zwrócić liczbę obiektów");
-            this();
-        },
-        function finalize(error) {
-            if (error) {
-                ok(false, error.message);
+        async.waterfall([
+            function (callback) {
+                me.db.open(callback);
+            },
+            function (callback) {
+                me.db.add({ name: "Task Name"}, 'Task', callback);
+            },
+            function (result, callback) {
+                notEqual(result, null, "Funkcja powinna zwrócić rekord z wypełnionym kluczem głównym");
+                callback();
+            }],
+            function finalize(error, result) {
+                ok(!error);
+
+                me.db.close();
+                start();
             }
-            me.db.close();
-            start();
-        }
-    );
-});
+        );
+    });
 
-asyncTest("Insert record", 1, function () {
-    var me = this;
+    asyncTest("Delete record", function () {
+        var me = this;
 
-    step(
-        function () {
-            me.db.open(this);
-        },
-        function (error) {
-            me.db.add({ name: "Task Name"}, 'Task', this);
-        },
-        function (error, id) {
-            notEqual(id, null, "Funkcja powinna zwrócić rekord z wypełnionym kluczem głównym");
-            this();
-        },
-        function finalize(error) {
-            if (error) {
-                ok(false, error.message);
+        async.waterfall([
+            function (callback) {
+                me.db.open(callback);
+            },
+            function (callback) {
+                me.db.add({name: "Task Name"}, 'Task', callback);
+            },
+            function (result, callback) {
+                notEqual(result, null, "Add should return new ID of record");
+                me.db.remove({id: result}, 'Task', callback);
+            },
+            function (result, callback) {
+
+                callback();
+            }],
+            function finalize(error) {
+                ok(!error);
+                me.db.close();
+                start();
             }
-            me.db.close();
-            start();
-        }
-    );
-});
+        );
+    });
 
-asyncTest("Delete record", 2, function () {
-    var me = this;
+    asyncTest("Update record", function () {
+        var me = this;
 
-    step(
-        function () {
-            me.db.open(this);
-        },
-        function (error) {
-            me.db.add({name: "Task Name"}, 'Task', this);
-        },
-        function (error, id) {
-            notEqual(id, null, "ID nadany");
-            me.db.remove({id: id}, 'Task', this);
-        },
-        function (error, count) {
-            equal(count, 1, "Skasowanie zakończone sukcesem");
-            this();
-        },
-        function finalize(error) {
-            if (error) {
-                ok(false, error.message);
+        async.waterfall([
+            function (callback) {
+                me.db.open(callback);
+            },
+            function (callback) {
+                me.db.add({name: 'Task Name' }, 'Task', callback);
+            },
+            function (result, callback) {
+                me.db.save({id: result.id, name: 'Updated by update'}, 'Task', callback);
+            }],
+            function finalize(error) {
+                ok(!error);
+                me.db.close();
+                start();
             }
-            me.db.close();
-            start();
-        }
-    );
-});
+        );
+    });
 
-asyncTest("Update record", 1, function () {
-    var me = this;
+    asyncTest("Save record", function () {
+        var me = this;
 
-    step(
-        function () {
-            me.db.open(this);
-        },
-        function (error) {
-            me.db.add({name: 'Task Name' }, 'Task', this);
-        },
-        function (error, result) {
-            me.db.save({id: result.id, name: 'Updated by update'}, 'Task', this);
-        },
-        function (error, result) {
-            ok(true, "Update zakończony sukcesem");
-            this();
-        },
-        function finalize(error) {
-            if (error) {
-                ok(false, error.message);
+        async.waterfall([
+            function (callback) {
+                me.db.open(callback);
+            },
+            function (callback) {
+                me.db.add({ name: 'Task Name'}, 'Task', callback);
+            },
+            function (result, callback) {
+                me.db.save({id: result.id, name: 'Updated by save'}, 'Task', callback);
+            },
+            function (result, callback) {
+                me.db.save({ name: 'New'}, 'Task', callback);
+            },
+            function (result, callback) {
+                notEqual(result, null, "Funkcja powinna zwrócić rekord z wypełnionym kluczem głównym");
+                callback();
+            }],
+            function finalize(error) {
+                ok(!error);
+                me.db.close();
+                start();
             }
-            me.db.close();
-            start();
-        }
-    );
-});
+        );
+    });
 
-asyncTest("Save record", 1, function () {
-    var me = this;
-    step(
-        function () {
-            me.db.open(this);
-        },
-        function (error) {
-            me.db.add({ name: 'Task Name'}, 'Task', this);
-        },
-        function (error, result) {
-            me.db.save({id: result.id, name: 'Updated by save'}, 'Task', this);
-        },
-        function (error, result) {
-            me.db.save({ name: 'New'}, 'Task', this);
-        },
-        function (error, id) {
-            notEqual(id, null, "Funkcja powinna zwrócić rekord z wypełnionym kluczem głównym");
-            this();
-        },
-        function finalize(error) {
-            if (error) {
-                ok(false, error.message);
+    asyncTest("Select record by ID", function () {
+        var me = this;
+
+        async.waterfall([
+            function (callback) {
+                me.db.open(callback);
+            },
+            function (callback) {
+                me.db.add({ name: 'Task Name'}, 'Task', callback);
+            },
+            function (result, callback) {
+                me.db.findById('Task', result, callback);
+            },
+            function (result, callback) {
+                notEqual(result.id, null, "Liczba rekordów powinna być 1");
+                callback();
+            }],
+            function finalize(error) {
+                ok(!error);
+                me.db.close();
+                start();
             }
-            me.db.close();
-            start();
-        }
-    );
-});
+        );
+    });
 
-asyncTest("Select record by ID", 1, function () {
-    var me = this;
-    step(
-        function () {
-            me.db.open(this);
-        },
-        function (error) {
-            me.db.add({ name: 'Task Name'}, 'Task', this);
-        },
-        function (error, id) {
-            me.db.findById('Task', id, this);
-        },
-        function (error, result) {
-            notEqual(result.id, null, "Liczba rekordów powinna być 1");
-            this();
-        },
-        function finalize(error) {
-            if (error) {
-                ok(false, error.message);
-            }
-            me.db.close();
-            start();
-        }
-    );
-});
-
-asyncTest("Check Change Log", 5, function () {
-    var me = this,
-        id,
-        o = {
-            name: 'Change Log Test'
-        };
-
-    step(
-        function () {
-            me.sync.init(this);
-        },
-        function (error) {
-            me.db.add(o, 'Task', this);
-        },
-        function (error, pid) {
-            id = pid;
-            me.sync.readLogForObject(id, this);
-        },
-        function (error, result) {
-            equal(result.operation, 'I', "Wpis do logu o typie I");
+    asyncTest("Check Change Log", function () {
+        var me = this,
+            id,
             o = {
-                id: id,
-                name: 'Updated Change Log Test'
+                name: 'Change Log Test'
             };
-            me.db.save(o, 'Task', this);
-        },
-        function (error, result) {
-            equal(result, id, "Po zapisie istniejącego obiektu id powinien być taki sam");
-            me.sync.readLogForObject(id, this);
-        },
-        function (error, result) {
-            equal(result.count, 1, "Liczba wpisów do logu powinna być 1");
-            equal(result.operation, 'I', "Wpis do logu o typie I");
-            me.db.remove(o, 'Task', this);
-        },
-        function (error, result) {
-            me.sync.readLogForObject(id, this);
-        },
-        function (error, result) {
-            equal(result, null, "Liczba wpisów do logu powinna być 0");
-            this();
-        },
-        function finalize(error) {
-            if (error) {
-                ok(false, error.message);
+
+        async.waterfall([
+            function (callback) {
+                me.db.open(callback);
+            },
+            function (callback) {
+                me.db.add(o, 'Task', callback);
+            },
+            function (result, callback) {
+                id = result;
+                me.sync.getLogForObject(id, callback);
+            },
+            function (result, callback) {
+                equal(result.length, 1, "ChangeLog count should be 1");
+                equal(result[0].operation, 'I', "Log operation should be I");
+                o = {
+                    id  : id,
+                    name: 'Updated Change Log Test'
+                };
+                me.db.save(o, 'Task', callback);
+            },
+            function (result, callback) {
+                equal(result, id, "Po zapisie istniejącego obiektu id powinien być taki sam");
+                me.sync.getLogForObject(id, callback);
+            },
+            function (result, callback) {
+                equal(result.length, 1, "Liczba wpisów do logu powinna być 1");
+                equal(result[0].operation, 'U', "Wpis do logu o typie U");
+                me.db.remove(o, 'Task', callback);
+            },
+            function (result, callback) {
+                me.sync.getLogForObject(id, callback);
+            },
+            function (result, callback) {
+                equal(result.length, 1, "Liczba wpisów do logu powinna być 1");
+                equal(result[0].operation, 'D', "Wpis do logu o typie D");
+                callback();
+            }],
+            function finalize(error) {
+                if (error) {
+                    ok(false, error.message);
+                }
+                me.db.close();
+                start();
             }
-            me.sync.done();
-            start();
-        }
-    );
-});
+        );
+    });
 
-asyncTest("Synchronize changes", 1, function () {
-    var me = this;
-    step(
-        function () {
-            me.sync.init(this);
-        },
-        function () {
-            me.sync.getChangedData(this);
-        },
-        function (error, clientdata) {
-            me.sync.exchangeData(clientdata, this);
-        },
-        function (error, serverdata) {
-            me.sync.enableChangeLog(false);
-            me.db.batchUpdate(serverdata, this);
-        },
-        function () {
-            me.db.clearTable(me.sync.getChangeLogTable(), this);
-        },
-        function finalize(error) {
-            me.sync.enableChangeLog(true);
-            equal(error, null, error ? error.message : "brak błędu");
-            me.sync.done();
-            start();
-        }
-    );
-});
+    asyncTest("Synchronize changes", 1, function () {
+        var me = this;
 
-asyncTest("Get All Data", 1, function () {
-    var me = this;
-    step(
-        function () {
-            me.sync.init(this);
-        },
-        function () {
-            me.sync.requestAllData(this);
-        },
-        function (error, serverdata) {
-            me.db.batchUpdate(serverdata, this);
-        },
-        function finalize(error) {
-            equal(error, null, error ? error.message : "brak błędu");
-            me.sync.done();
-            start();
-        }
-    );
+        async.waterfall([
+            function (callback) {
+                me.db.open(callback);
+            },
+            function (callback) {
+                me.db.add({name:'Test'}, 'Task', callback);
+            },
+            function (result, callback) {
+                me.sync.getChangedData(new Date(1900,1,1), callback);
+            },
+            function (result, callback) {
+                me.remote.sync(result.data, callback);
+            },
+            function (result, callback) {
+                me.db.batchUpdate(result.data, callback);
+            },
+            function (result, callback) {
+                me.db.clearTable(me.sync.getChangeLogTable(), callback);
+            }],
+            function finalize(error) {
+                equal(error, null, error ? error.message : "brak błędu");
+                me.db.close();
+                start();
+            }
+        );
+    });
+
+    asyncTest("Get All Data", 1, function () {
+        var me = this;
+
+        async.waterfall([
+            function (callback) {
+                me.db.open(callback);
+            },
+            function (callback) {
+                me.remote.sync(callback);
+            },
+            function (result, callback) {
+                me.db.batchUpdate(result.data, callback);
+            }],
+            function finalize(error) {
+                equal(error, null, error ? error.message : "brak błędu");
+                me.db.close();
+                start();
+            }
+        );
+    });
 });

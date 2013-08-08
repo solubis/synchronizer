@@ -3,10 +3,8 @@
         "primaryKey": "id",
         "fields"    : [
             {
-                "name"         : "id",
-                "type"         : "int",
-                "length"       : 5,
-                "autoincrement": true
+                "name": "id",
+                "type": "autoincrement"
             },
             {
                 "name": "object_id"
@@ -48,10 +46,6 @@
             {
                 "name": "end",
                 "type": "date"
-            },
-            {
-                "name": "estimate",
-                "type": "int"
             },
             {
                 "name": "type_id",

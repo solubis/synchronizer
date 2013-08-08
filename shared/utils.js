@@ -9,10 +9,12 @@
 
 "use strict";
 
-var async = require("async");
-var request = require("request");
+if (typeof define !== 'function') {
+    var define = require('amdefine')(module);
+}
 
-(function () {
+define(function (require) {
+    var async = require("./async");
 
     var utils = {};
     utils.config = {};
@@ -32,6 +34,7 @@ var request = require("request");
 
     utils.ajax = function ajax(url, command, data, callback) {
         var xhr = new XMLHttpRequest();
+
         xhr.open('POST', url + '/' + command, true);
         xhr.setRequestHeader("Content-Type", "application/json");
         xhr.onreadystatechange = function () {
@@ -150,15 +153,6 @@ var request = require("request");
         return func;
     };
 
-    if (typeof exports !== "undefined") {
-        var util = require("util");
-
-        utils.log = function () {
-            var text = util.format.apply(this, arguments);
-            util.log(text);
-        };
-
-        module.exports = utils;
-    }
-})();
+    return utils;
+});
 

@@ -1,29 +1,32 @@
 /**
- *  database.js
- *
- *  Database helper
- *
- *  Copyright 2011  All rights reserved.
+ * Created with JetBrains WebStorm.
+ * User: yoorek
+ * Date: 02.08.2013
+ * Time: 17:42
+ * To change this template use File | Settings | File Templates.
  */
 
 "use strict";
 
-var utils = require("./utils");
-var async = require("async");
+if (typeof define !== 'function') {
+    var define = require('amdefine')(module);
+}
 
-var AbstractDatabase = (function () {
+define(function (require) {
+
+    var utils = require("./utils");
+    var async = require("./async");
 
     var respond = utils.respond,
         extend = utils.extend,
         config = utils.config,
-        counterCallback = utils.counterCallback;
+        guid = utils.guid,
+        log = utils.log;
 
-    var AbstractDatabase = extend(Object, {
+    var Database = extend(Object, {
 
         initialize: function () {
             var primaryKey = 'id', logSQL = config.queryLogEnabled || false;
-
-            this.initEvents();
 
             this.isQueryLogEnabled = function () {
                 return logSQL;
@@ -36,97 +39,9 @@ var AbstractDatabase = (function () {
             this.getPrimaryKey = function () {
                 return primaryKey;
             };
-
-            this.setPrimaryKey = function (fieldName) {
-                primaryKey = fieldName;
-            };
         },
 
-        save: function (object, table, callback) {
-            var me = this,
-                id;
-
-            id = object[me.getPrimaryKey()];
-
-            if (!id) {
-                return me.add(object, table, callback);
-            }
-
-            function complete(error, result) {
-                if (error) {
-                    return respond(callback, error, null);
-                }
-
-                if (result) {
-                    me.update(object, table, callback);
-                } else {
-                    me.add(object, table, callback);
-                }
-            }
-
-            me.exist(id, table, complete);
-        },
-
-        batchUpdate: function (data, callback) {
-            var me = this,
-                count = 0,
-                table,
-                object,
-                counter;
-
-            if (!data || !data.tables) {
-                return respond(callback, null, null);
-            }
-
-            function isDeletedObject(object) {
-                return Object.keys(object).length === 1 && object[me.getPrimaryKey()];
-            }
-
-            function complete(error) {
-                respond(callback, error, count);
-            }
-
-            Object.keys(data.tables).forEach(function (tablename) {
-                count = count + data.tables[tablename].length;
-            });
-
-            if (count === 0) {
-                return respond(callback, null, 0);
-            }
-
-            counter = counterCallback(count, complete);
-
-            Object.keys(data.tables).forEach(function (tablename) {
-                table = data.tables[tablename];
-
-                for (var j = 0; j < table.length; j++) {
-                    object = table[j];
-
-                    if (isDeletedObject(object)) {
-                        me.remove(object, tablename, counter);
-                    } else {
-                        me.save(object, tablename, counter);
-                    }
-                }
-            });
-        }
-    });
-
-    return AbstractDatabase;
-
-})();
-
-var Database = (function () {
-
-    var respond = utils.respond,
-        counterCallback = utils.counterCallback,
-        guid = utils.guid,
-        extend = utils.extend,
-        log = utils.log;
-
-    var Database = extend(AbstractDatabase, {
-
-        open: function () {
+        open: function (callback) {
             throw new Error("open not implemented");
         },
 
@@ -142,8 +57,77 @@ var Database = (function () {
             throw new Error("getSchemaDefinition not implemented");
         },
 
-        createTable: function (name, model, callback) {
-            throw new Error("createTable not implemented");
+        getTriggerSQL: function (table, action) {
+            var operation = action.charAt(0);
+            var id = (operation === 'D' ? "OLD.id" : "NEW.id");
+
+            return "CREATE TRIGGER " + table + "_AFTER_" + action + " AFTER " + action + " ON " + table + " FOR EACH ROW " +
+                "BEGIN " +
+                "DELETE FROM ChangeLog WHERE object_id = " + id + ";"+
+                "INSERT INTO ChangeLog (object_id, tablename, timestamp, operation) VALUES (" +
+                id + ", '" +
+                table + "', " +
+                this.getSQLMapping("now()") + ", '" +
+                operation + "'); " +
+                "END;";
+        },
+
+        getSQLMapping: function (type, length) {
+            return type;
+        },
+
+        save: function (object, table, callback) {
+            var me = this,
+                id;
+
+            id = object[me.getPrimaryKey()];
+
+            if (!id) {
+                return me.add(object, table, callback);
+            }
+
+            function complete(error, result) {
+                if (error) {
+                    return respond(callback, error);
+                }
+
+                if (result) {
+                    me.update(object, table, callback);
+                } else {
+                    me.add(object, table, callback);
+                }
+            }
+
+            me.exist(id, table, complete);
+        },
+
+        batchUpdate: function (data, callback) {
+            var me = this, count = 0;
+
+            if (!(data instanceof Array)){
+                return callback(new Error("Data is not array"));
+            }
+
+            async.forEach(data, function (row, onComplete) {
+                var tablename = row.table;
+
+                delete row.table;
+
+                function isDeletedObject(object) {
+                    return Object.keys(object).length === 1 && object[me.getPrimaryKey()];
+                }
+
+                if (isDeletedObject(row)) {
+                    me.remove(row, tablename, onComplete);
+                } else {
+                    me.save(row, tablename, onComplete);
+                }
+                count++;
+
+            }, function (error) {
+                callback(error, count);
+            });
+
         },
 
         query: function (sql, params, callback) {
@@ -158,14 +142,18 @@ var Database = (function () {
                     result.rows.forEach(function (row) {
                         Object.keys(row).forEach(function (key) {
                             if (row[key] === null) {
-                                delete row[key];
+                                try {
+                                    delete row[key];
+                                } catch (exception) {
+
+                                }
                             }
                         });
                     });
                 }
 
                 if (error) {
-                    return respond(callback, error, null);
+                    return respond(callback, error);
                 }
                 return respond(callback, null, result.rows);
             }
@@ -184,7 +172,7 @@ var Database = (function () {
         findById: function (table, id, callback) {
             function complete(error, result) {
                 if (error) {
-                    return respond(callback, error, null);
+                    return respond(callback, error);
                 }
 
                 if (result.length > 1) {
@@ -199,7 +187,7 @@ var Database = (function () {
         exist: function (id, table, callback) {
             function complete(error, result) {
                 if (error) {
-                    return respond(callback, error, null);
+                    return respond(callback, error);
                 }
                 return respond(callback, null, result.rows.length > 0);
             }
@@ -217,15 +205,12 @@ var Database = (function () {
 
             function complete(error, result) {
                 if (error) {
-                    return respond(callback, error, null);
+                    return respond(callback, error);
                 }
                 if (!result.rowsAffected) {
                     log("WARNING! Insert with no rows affected");
-                } else {
-                    me.fireEvent('afterAdd', {table: table, id: id}, function () {
-                        respond(callback, null, id);
-                    });
                 }
+                return respond(callback, null, id);
             }
 
             id = id || guid();
@@ -257,11 +242,8 @@ var Database = (function () {
                 }
                 if (!result.rowsAffected) {
                     log("WARNING! Delete with no rows affected");
-                } else {
-                    me.fireEvent('afterRemove', {table: table, id: id}, function () {
-                        respond(callback, null, result.rowsAffected);
-                    });
                 }
+                respond(callback, null, result.rowsAffected);
             }
 
             sql = "DELETE FROM " + table + ' WHERE id = ?';
@@ -280,14 +262,11 @@ var Database = (function () {
                     return respond(callback, error, null);
                 }
 
-                if (result.rowsAffected) {
-                    me.fireEvent('afterUpdate', {table: table, id: id}, function () {
-                        respond(callback, null, id);
-                    });
-                }
-                else {
+                if (!result.rowsAffected) {
                     log("WARNING! Update with no rows affected");
                 }
+
+                respond(callback, null, id);
             }
 
             for (var field in object) {
@@ -309,15 +288,81 @@ var Database = (function () {
             me.getSchemaDefinition(function (error, schema) {
 
                 if (error) {
-                    return respond(callback, error, null);
+                    return respond(callback, error);
                 }
 
                 async.forEach(Object.keys(schema), function (table, complete) {
                     me.createTable(table, schema[table], complete);
-                }, function finalize (error){
-                    return respond (callback, error);
+                }, function finalize(error) {
+                    return respond(callback, error);
                 });
             });
+        },
+
+        createTable: function (name, model, callback) {
+            var me = this,
+                dropSQL = "DROP TABLE IF EXISTS " + name,
+                createSQL = "CREATE TABLE " + name + "(",
+                primaryKey = model.primaryKey || me.getPrimaryKey(),
+                hasAutoincrement = false,
+                columns = [];
+
+            model.fields.forEach(function (columnDef) {
+                var name = columnDef.name,
+                    type = me.getSQLMapping(columnDef.type || "string", columnDef.length),
+                    isRequired = columnDef.required || (columnDef.name === primaryKey),
+                    column = [];
+
+                if (columnDef.type === "autoincrement") {
+                    hasAutoincrement = true;
+                }
+
+                column.push(name);
+                column.push(type);
+                column.push(isRequired ? "NOT NULL" : "NULL");
+
+                columns.push(column.join(" "));
+            });
+
+            if (!hasAutoincrement) {
+                columns.push("PRIMARY KEY(" + primaryKey + ")");
+            }
+            createSQL += columns.join(",");
+            createSQL += ")";
+
+            async.series([
+                function (callback) {
+                    me.executeSQL(dropSQL, callback);
+                },
+                function (callback) {
+                    me.executeSQL(createSQL, callback);
+                },
+                function (callback) {
+                    if (name !== 'ChangeLog') {
+                        me.executeSQL(me.getTriggerSQL(name, 'INSERT'), callback);
+                    } else {
+                        callback();
+                    }
+                },
+                function (callback) {
+                    if (name !== 'ChangeLog') {
+                        me.executeSQL(me.getTriggerSQL(name, 'DELETE'), callback);
+                    } else {
+                        callback();
+                    }
+                },
+                function (callback) {
+                    if (name !== 'ChangeLog') {
+                        me.executeSQL(me.getTriggerSQL(name, 'UPDATE'), callback);
+                    } else {
+                        callback();
+                    }
+                }],
+
+                function finalize(error) {
+                    respond(callback, error);
+                }
+            );
         },
 
         date: function (date) {
@@ -347,9 +392,4 @@ var Database = (function () {
     });
 
     return Database;
-
-})();
-
-if (typeof module !== 'undefined' && "exports" in module) {
-    module.exports = Database;
-}
+});

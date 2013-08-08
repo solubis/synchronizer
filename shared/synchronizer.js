@@ -9,10 +9,13 @@
 
 "use strict";
 
-var fs = require("fs");
-var utils = require("../shared/utils");
+if (typeof define !== 'function') {
+    var define = require('amdefine')(module);
+}
 
-var Synchronizer = function () {
+define(function (require) {
+
+    var utils = require("./utils");
 
     var respond = utils.respond,
         extend = utils.extend,
@@ -21,8 +24,7 @@ var Synchronizer = function () {
     var Synchronizer = extend(Object, {
 
         initialize: function (database) {
-            var me = this,
-                changeLog = true,
+            var changeLog = true,
                 changeLogTable = 'ChangeLog';
 
             if (database === undefined) {
@@ -46,10 +48,15 @@ var Synchronizer = function () {
             this.isChangeLogEnabled = function () {
                 return changeLog;
             };
+        },
 
-            this.getDB = function () {
-                return database;
-            };
+        getLogForObject: function (id, callback) {
+            var me = this,
+                db = me.getDB();
+
+            var sql = "SELECT * FROM " + me.getChangeLogTable();
+
+            db.query(sql, callback);
         },
 
         getChangedData: function (start, callback) {
@@ -57,24 +64,21 @@ var Synchronizer = function () {
                 db = me.getDB(),
                 count,
                 sql,
-                tables = {};
+                data = [];
 
             function addRowToResult(row, table) {
                 var result = {};
 
                 count--;
 
-                if (tables[table] === undefined) {
-                    tables[table] = [];
-                }
-
                 if (row) {
-                    tables[table].push(row);
+                    row.table = table;
+                    data.push(row);
                 }
 
                 if (count === 0) {
                     result = {
-                        tables: tables
+                        data: data
                     };
 
                     respond(callback, null, result);
@@ -90,22 +94,22 @@ var Synchronizer = function () {
                 };
             }
 
-            if (!start) {
-                start = new Date(1900, 1, 1);
+            if (!start || !(start instanceof Date)) {
+                return respond(callback, new Error("Pass start date"));
             }
+
+            log("Changed data since: " + start);
 
             start = db.date(start);
 
             sql = "SELECT * FROM " + me.getChangeLogTable() + " WHERE timestamp > ? ORDER BY timestamp";
-
-            log("Changed data since: [%s]", start);
 
             db.query(sql, [start],
                 function (error, rows) {
                     var result, log, length;
 
                     if (error) {
-                        return respond(callback, error, null);
+                        return respond(callback, error);
                     }
 
                     if (!rows || rows.length === 0) {
@@ -132,20 +136,25 @@ var Synchronizer = function () {
             var me = this,
                 db = me.getDB(),
                 count,
-                tables = {};
+                data = [];
 
             function addRowsToResult(rows, table) {
                 var result = {};
 
-                count--;
-
                 if (rows.length > 0) {
-                    tables[table] = rows;
+
+                    for (var i = 0; i < rows.length; i++) {
+                        rows[i].table = table;
+                    }
+
+                    data = data.concat(rows);
                 }
+
+                count--;
 
                 if (count === 0) {
                     result = {
-                        tables: tables
+                        data: data
                     };
 
                     respond(callback, null, result);
@@ -178,12 +187,8 @@ var Synchronizer = function () {
         }
     });
 
-    Synchronizer.noLog = ["ChangeLog", "Configuration", "SynchronizationLog"];
+    Synchronizer.noLog = ["ChangeLog"];
 
     return Synchronizer;
+});
 
-}();
-
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = Synchronizer;
-}

@@ -11,7 +11,7 @@ var Database = require("../shared/database.js");
 var log = utils.log,
     respond = utils.respond,
     extend = utils.extend,
-    dataFolder = __dirname + "/../../data/";
+    dataFolder = __dirname + "/../data/";
 
 var MySQLDatabase = (function () {
 
@@ -119,81 +119,7 @@ var MySQLDatabase = (function () {
                 );
             },
 
-            createTable: function (name, model, callback) {
-                var me = this,
-                    dropSQL = "DROP TABLE IF EXISTS " + name,
-                    createSQL = "CREATE TABLE " + name + "(",
-                    primaryKey = model.primaryKey || me.getPrimaryKey(),
-                    columns = [];
-
-                model.fields.forEach(function (columnDef) {
-                    var name = columnDef.name,
-                        type = me.getSQLType(columnDef.type || "string", columnDef.length),
-                        isRequired = columnDef.required || (columnDef.name === primaryKey),
-                        isAutoincrement = columnDef.autoincrement,
-                        column = [];
-
-                    column.push(name);
-                    column.push(type);
-                    column.push(isRequired ? "NOT NULL" : "NULL");
-                    if (isAutoincrement) {
-                        column.push("AUTO_INCREMENT");
-                    }
-
-                    columns.push(column.join(" "));
-                });
-
-                columns.push("PRIMARY KEY(" + primaryKey + ")");
-                createSQL += columns.join(",");
-                createSQL += ")";
-
-                async.series([
-                    function (callback) {
-                        me.executeSQL(dropSQL, callback);
-                    },
-                    function (callback) {
-                        me.executeSQL(createSQL, callback);
-                    },
-                    function (callback) {
-                        if (name !== 'ChangeLog') {
-                            me.executeSQL(me.getTriggerSQL(name, 'INSERT'), callback);
-                        } else {
-                            callback();
-                        }
-                    },
-                    function (callback) {
-                        if (name !== 'ChangeLog') {
-                            me.executeSQL(me.getTriggerSQL(name, 'DELETE'), callback);
-                        } else {
-                            callback();
-                        }
-                    },
-                    function (callback) {
-                        if (name !== 'ChangeLog') {
-                            me.executeSQL(me.getTriggerSQL(name, 'UPDATE'), callback);
-                        } else {
-                            callback();
-                        }
-                    }],
-
-                    function finalize(error) {
-
-                        return respond(callback, error);
-                    }
-
-                )
-                ;
-            },
-
-            getTriggerSQL: function (table, action) {
-                var operation = action.charAt(0);
-                var id = (operation === 'D' ? "OLD.id" : "NEW.id");
-
-                return "CREATE TRIGGER " + table + "_AFTER_" + action + " AFTER " + action + " ON " + table + " FOR EACH ROW " +
-                    " INSERT INTO ChangeLog SET object_id = "+ id + ", tablename = '" + table + "',timestamp = NOW(),operation = '" + operation + "'";
-            },
-
-            getSQLType: function (type, length) {
+            getSQLMapping: function (type, length) {
                 switch (type) {
                     case "string":
                         if (length) {
@@ -204,6 +130,8 @@ var MySQLDatabase = (function () {
                         break;
                     case "date":
                         return "datetime";
+                    case "autoincrement":
+                        return "int PRIMARY KEY AUTO_INCREMENT";
 
                     default:
                         return type;
@@ -225,22 +153,8 @@ var MySQLDatabase = (function () {
 
     return MySQLDatabase;
 
-})
-    ();
+})();
 
 if (typeof module !== 'undefined' && "exports" in module) {
     module.exports = MySQLDatabase;
-}
-
-function dateToMysql(val) {
-    return val.getUTCFullYear() + '-' +
-        fillZeros(val.getUTCMonth() + 1) + '-' +
-        fillZeros(val.getUTCDate()) + ' ' +
-        fillZeros(val.getUTCHours()) + ':' +
-        fillZeros(val.getUTCMinutes()) + ':' +
-        fillZeros(val.getUTCSeconds());
-
-    function fillZeros(v) {
-        return v < 10 ? '0' + v : v;
-    }
 }

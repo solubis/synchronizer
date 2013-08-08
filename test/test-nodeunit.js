@@ -1,13 +1,13 @@
 "use strict";
 
-var MySQLDatabase = require("../server/database.mysql");
+var Database = require("../server/mysql.js");
 var Synchronizer = require("../shared/synchronizer");
 var async = require("async");
 
-var db = new MySQLDatabase('test', 'root', null);
+var db = new Database('test', 'root', null);
 var sync = new Synchronizer(db);
 
-db.setQueryLog(false);
+db.setQueryLog(true);
 
 exports.testCreateDatabase = function (test) {
 
@@ -23,7 +23,8 @@ exports.testCreateDatabase = function (test) {
             test.done();
 
             db.close();
-        });
+        }
+    );
 };
 
 exports.testDatabaseCRUD = function (test) {
@@ -99,7 +100,7 @@ exports.testSynchronize = function (test) {
         },
         function (result, callback) {
             test.notEqual(result, null, "Changed data read");
-            test.equal(result.tables.Task.length, 2, "Number of rows should be correct");
+            test.equal(result.data.length, 2, "Number of rows should be correct");
 
             setTimeout(callback, 1000); // zapamiętywać czas ostatniej synchronizacji
         },
@@ -130,10 +131,10 @@ exports.testSynchronize = function (test) {
         function finalize(error, result) {
             test.ifError(error);
             test.notEqual(result, null, "Changed data read");
-            test.ok(result.tables.Task);
+            test.ok(result.data);
 
-            if (result.tables.Task) {
-                test.equal(result.tables.Task.length, 3, "Number of rows should be correct");
+            if (result.data) {
+                test.equal(result.data.length, 3, "Number of rows should be correct");
             }
 
             test.done();
@@ -163,7 +164,6 @@ exports.testFillDatabase = function (test) {
                         name       : "Test Name",
                         description: "Description",
                         start      : db.date(new Date(2011, 0, 1)),
-                        estimate   : 12
                     }, 'Task', callback);
                 },
                 function finalize(error) {
@@ -178,6 +178,57 @@ exports.testFillDatabase = function (test) {
             test.done();
 
             db.close();
-        });
+        }
+    );
+};
+
+exports.testGetAllData = function (test) {
+
+    async.waterfall([
+        function (callback) {
+            db.open(callback);
+        },
+        function (result, callback) {
+            sync.getAllData(callback);
+        }],
+        function finalize(error, result) {
+            test.ifError(error);
+            test.ok(result.data);
+
+            if (result.data) {
+                test.ok(result.data.length >= 3, "Number of rows should be correct");
+            }
+            test.done();
+
+            db.close();
+        }
+    );
+};
+
+exports.testBatchUpdate = function (test) {
+
+    var data = [
+        {table: 'Task', id: '3', name: 'To Delet'},
+        {table: 'Task', id: '3'},
+        {table: 'Task', id: '2', name: 'Batch update'},
+        {table: 'Task', id: '1', name: 'Batch update'},
+        {table: 'Task', id: '4', name: 'New batch update'}
+    ];
+
+    async.waterfall([
+        function (callback) {
+            db.open(callback);
+        },
+        function (result, callback) {
+            db.batchUpdate(data, callback);
+        }],
+        function finalize(error, result) {
+            test.ifError(error);
+            test.ok(result === 5);
+            test.done();
+
+            db.close();
+        }
+    );
 };
 

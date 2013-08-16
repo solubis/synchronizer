@@ -9,7 +9,7 @@
 
 "use strict";
 
-require(["../node_modules/async/lib/async", "../client/websqlite", "../client/remote", "../shared/utils", "../shared/synchronizer"], function (async, sqlite, remote, utils, synchronizer) {
+require(["../shared/async", "../client/websqlite", "../client/remote", "../shared/utils"], function (async, sqlite, remote, utils) {
 
     QUnit.testStart = function (test) {
         console.log("Test: " + test.module + " - " + test.name);
@@ -20,8 +20,6 @@ require(["../node_modules/async/lib/async", "../client/websqlite", "../client/re
 
             this.db = new sqlite("test");
             this.db.setQueryLog(false);
-
-            this.sync = new synchronizer(this.db);
 
             this.remote = new remote("http://localhost:3000", "test", "mac");
         }
@@ -184,7 +182,7 @@ require(["../node_modules/async/lib/async", "../client/websqlite", "../client/re
             },
             function (result, callback) {
                 id = result;
-                me.sync.getLogForObject(id, callback);
+                me.db.getLogForObject(id, callback);
             },
             function (result, callback) {
                 equal(result.length, 1, "ChangeLog count should be 1");
@@ -197,7 +195,7 @@ require(["../node_modules/async/lib/async", "../client/websqlite", "../client/re
             },
             function (result, callback) {
                 equal(result, id, "Po zapisie istniejącego obiektu id powinien być taki sam");
-                me.sync.getLogForObject(id, callback);
+                me.db.getLogForObject(id, callback);
             },
             function (result, callback) {
                 equal(result.length, 1, "Liczba wpisów do logu powinna być 1");
@@ -205,7 +203,7 @@ require(["../node_modules/async/lib/async", "../client/websqlite", "../client/re
                 me.db.remove(o, 'Task', callback);
             },
             function (result, callback) {
-                me.sync.getLogForObject(id, callback);
+                me.db.getLogForObject(id, callback);
             },
             function (result, callback) {
                 equal(result.length, 1, "Liczba wpisów do logu powinna być 1");
@@ -233,7 +231,7 @@ require(["../node_modules/async/lib/async", "../client/websqlite", "../client/re
                 me.db.add({name:'Test'}, 'Task', callback);
             },
             function (result, callback) {
-                me.sync.getChangedData(new Date(1900,1,1), callback);
+                me.db.getChangedData(new Date(1900,1,1), callback);
             },
             function (result, callback) {
                 me.remote.sync(result.data, callback);
@@ -242,7 +240,7 @@ require(["../node_modules/async/lib/async", "../client/websqlite", "../client/re
                 me.db.batchUpdate(result.data, callback);
             },
             function (result, callback) {
-                me.db.clearTable(me.sync.getChangeLogTable(), callback);
+                me.db.clearTable(me.db.getChangeLogTable(), callback);
             }],
             function finalize(error) {
                 equal(error, null, error ? error.message : "brak błędu");

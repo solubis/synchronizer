@@ -7,7 +7,6 @@ var async = require('async');
 
 var utils = require('./shared/utils');
 var Database = require('./server/mysql');
-var Synchronizer = require('./shared/synchronizer');
 
 var app = express();
 var log = utils.log;
@@ -32,7 +31,6 @@ if ('development' === app.get('env')) {
 }
 
 var db = new Database('test', 'root');
-var sync = new Synchronizer(db);
 
 app.get('/', function (req, res) {
     res.render('test', {title: 'QUnit test'});
@@ -52,7 +50,7 @@ app.post('/sync', function (req, res) {
             db.open(callback);
         },
         function (result, callback) {
-            sync.getAllData(callback);
+            db.getAllData(callback);
         }
     ], function (error, result) {
         if (error) {

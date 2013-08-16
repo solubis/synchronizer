@@ -1,11 +1,10 @@
 "use strict";
 
-var Database = require("../server/mysql.js");
-var Synchronizer = require("../shared/synchronizer");
 var async = require("async");
 
+var Database = require("../server/mysql.js");
+
 var db = new Database('test', 'root', null);
-var sync = new Synchronizer(db);
 
 db.setQueryLog(true);
 
@@ -94,7 +93,7 @@ exports.testSynchronize = function (test) {
 
         // First Synchronization - 2 rows
         function (callback) {
-            sync.getChangedData(new Date(1900,1,1), callback);
+            db.getChangedData(new Date(1900,1,1), callback);
         },
         function (result, callback) {
             test.notEqual(result, null, "Changed data read");
@@ -124,7 +123,7 @@ exports.testSynchronize = function (test) {
 
         // New Synchronization
         function (callback) {
-            sync.getChangedData(lastSync, callback);
+            db.getChangedData(lastSync, callback);
         }],
         function finalize(error, result) {
             test.ifError(error);
@@ -187,7 +186,7 @@ exports.testGetAllData = function (test) {
             db.open(callback);
         },
         function (result, callback) {
-            sync.getAllData(callback);
+            db.getAllData(callback);
         }],
         function finalize(error, result) {
             test.ifError(error);

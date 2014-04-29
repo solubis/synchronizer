@@ -8,13 +8,13 @@
   "dependencies": {
     "express": "*",
     "blade": "*",
-    "less-middleware": "~0.1.12",
-    "qunitjs": "~1.12.0",
-    "nodeunit": "~0.8.1",
-    "mysql": "~2.0.0-alpha8",
+    "less-middleware": "*",
+    "qunitjs": "*",
+    "nodeunit": "*",
+    "mysql": "*",
     "dateformat": "*",
-    "requirejs": "~2.1.8",
-    "async": "~0.2.9",
-    "amdefine": "0.0.6"
+    "requirejs": "*",
+    "async": "*",
+    "amdefine": "*"
   }
 }
